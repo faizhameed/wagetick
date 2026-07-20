@@ -1,22 +1,39 @@
 # WageTick
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black.svg)](#requirements)
+[![Qt](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io/)
+
 Watch your earnings tick up — **live, every second**.
 
 Set your hourly rate in **USD ($)**, **EUR (€)**, or **GBP (£)**, hit **Start**, and the counter climbs in real time. Pause with **Stop**, clear with **Reset**.
 
-Glassmorphic dark UI · C++17 + Qt 6 · **Apple Silicon Mac**
+Built with **C++17 + Qt 6 QML** · glassmorphic UI · **Apple Silicon** macOS
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="WageTick app showing $67.29 earned after 1 hour 20 minutes 45 seconds at $50/hr" width="380" />
+  <img src="docs/screenshot.png" alt="WageTick showing earnings after 1 hour 20 minutes 45 seconds" width="380" />
 </p>
 
-<p align="center"><em>Live earnings after <strong>1h 20m 45s</strong> at $50/hr — elapsed clock <code>01:20:45</code>.</em></p>
+<p align="center"><em>Example: <strong>1h 20m 45s</strong> at $50/hr → <code>$67.2917</code> earned · elapsed <code>01:20:45</code></em></p>
 
 ---
 
-## Install (Apple Silicon)
+## Features
 
-**One-time setup** — clone the repo and run the installer. It installs dependencies (via Homebrew), builds the app, and puts **WageTick** in your **Applications** folder.
+- Hourly rate with currency dropdown (USD / EUR / GBP)
+- Start / Stop / Reset
+- Live earnings (4 decimal places) from precise elapsed time
+- Elapsed clock `HH:MM:SS`
+- Per-second and per-minute rates
+- Glassmorphic dark UI
+- In-app update checks via [GitHub Releases](https://github.com/faizhameed/wagetick/releases)
+- Rate locked while the timer is running
+
+---
+
+## Install
+
+**Requires:** Apple Silicon Mac (M1/M2/M3/M4…), macOS 12+ recommended.
 
 ```bash
 git clone https://github.com/faizhameed/wagetick.git
@@ -24,168 +41,147 @@ cd wagetick
 ./install.sh
 ```
 
-That’s it. Open it from **Launchpad**, **Spotlight** (⌘Space → `WageTick`), or:
+Then open from **Launchpad**, **Spotlight** (`⌘Space` → WageTick), or:
 
 ```bash
 open -a WageTick
 ```
 
-### What the installer does
+### What `install.sh` does
 
-1. Checks you’re on **Apple Silicon** (`arm64`) macOS  
-2. Ensures **Xcode Command Line Tools** + **Homebrew** are available  
-3. Installs `cmake`, `qtbase`, `qtdeclarative`, `qtsvg`  
-4. Builds a **Release** app bundle  
-5. Bundles Qt frameworks into the `.app` (self-contained)  
-6. Ad-hoc code-signs the app  
-7. Installs to `/Applications/WageTick.app` and launches it  
+1. Verifies Apple Silicon (`arm64`)
+2. Ensures Xcode Command Line Tools and [Homebrew](https://brew.sh) are available
+3. Installs build deps: `cmake`, `qtbase`, `qtdeclarative`, `qtsvg`
+4. Builds a Release `.app` and bundles Qt frameworks
+5. Ad-hoc code-signs and installs to `/Applications/WageTick.app`
 
-First install may take several minutes while Homebrew fetches Qt.
+First install can take several minutes while Homebrew fetches Qt (~1–2 GB free disk recommended during build; app is ~120 MB).
+
+### Update
+
+```bash
+cd wagetick
+git pull
+./install.sh
+```
+
+Or follow the in-app **Update available** banner when a new [release](https://github.com/faizhameed/wagetick/releases) is published.
 
 ### Uninstall
 
 ```bash
 ./uninstall.sh
-# or:
+# or
 rm -rf /Applications/WageTick.app
-```
-
-### Reinstall / update
-
-```bash
-git pull
-./install.sh
 ```
 
 ---
 
 ## Requirements
 
-| Item | Notes |
-|------|--------|
-| Mac | **Apple Silicon** (M1 / M2 / M3 / M4 …) |
-| macOS | 12 Monterey or newer recommended |
-| Network | Needed once for Homebrew + Qt packages |
-| Disk | ~1–2 GB free during build (Qt toolchain); app itself ~120 MB |
-
-Intel Macs are not covered by this installer.
+| | |
+|---|---|
+| **Mac** | Apple Silicon only (`arm64`) |
+| **OS** | macOS 12 Monterey or newer (recommended) |
+| **Network** | First install needs network for Homebrew/Qt |
+| **Intel Macs** | Not supported by the installer |
 
 ---
 
-## Features
+## Usage
 
-- Hourly rate + currency dropdown (USD / EUR / GBP)
-- Start / Stop / Reset
-- Live earnings (4 decimal places) from precise elapsed time
-- Elapsed clock `HH:MM:SS`
-- Per-second and per-minute chips
-- Glassmorphic UI with soft animated ambient orbs
-- Rate locked while the timer is running
-- In-app update checks (GitHub Releases) with optional dismiss / remind later
+1. Choose a **currency** from the dropdown  
+2. Enter your **hourly rate**  
+3. Press **Start** — earnings update continuously  
+4. **Stop** pauses (time is kept); **Reset** clears the session  
 
----
+While running, the hourly rate field is locked so you don’t change it by accident mid-session.
 
-## How earnings are calculated
+### How earnings are calculated
 
-```
+```text
 earned = (elapsed_milliseconds / 3_600_000) × hourly_rate
 ```
 
-Time uses a high-resolution clock and accumulates across pause/resume.
+Elapsed time uses a high-resolution clock and accumulates across pause/resume.
 
 ---
 
+## Updates (end users)
 
-### Regenerate the README screenshot
+WageTick checks GitHub Releases about once a day (and when you click the version chip in the header).
 
-Seeds elapsed time to **1 hour 20 minutes 45 seconds** and writes `docs/screenshot.png`:
+If a newer **published** release exists:
 
-```bash
-cmake --build build-test -j   # or any Release build
-WAGETICK_SCREENSHOT_ELAPSED_MS=4845000 \
-WAGETICK_SAVE_SCREENSHOT=docs/screenshot.png \
-  ./build-test/WageTick.app/Contents/MacOS/WageTick
-```
+| Action | What it does |
+|--------|----------------|
+| **View release** | Opens the GitHub release page |
+| **How to update** | Opens install/update instructions |
+| **Skip** | Hides that version until a newer one ships |
+| **✕** | Reminds again in ~24 hours |
 
-## Developer build (optional)
+Updates are **not** installed silently — re-run `./install.sh` (or follow the release notes).
 
-If you only want to compile without installing to Applications:
+---
+
+## Contributing
+
+Contributions are welcome — bug reports, features, docs, and design polish.
+
+**You do not need write access to the repo.** The usual open-source flow is:
+
+1. **Fork** this repository  
+2. Create a **branch** for your change  
+3. Open a **Pull Request** into `main`  
+
+Maintainers review PRs and merge. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup, branch naming, PR guidelines, and how releases work.
+
+- 🐛 Bugs → [Issues](https://github.com/faizhameed/wagetick/issues)  
+- 💡 Ideas → Issues or a draft PR  
+- 🔐 Security-sensitive reports → open a private advisory or contact the maintainers if available  
+
+### Development build (no install to Applications)
 
 ```bash
 brew install cmake qtbase qtdeclarative qtsvg
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 open build/WageTick.app
 ```
 
-Or use the Makefile:
+Full install from a local tree:
 
 ```bash
-make install    # full install to /Applications
-make uninstall
-make clean
+./install.sh
+# or
+make install
 ```
 
 ---
 
 ## Project layout
 
-```
+```text
 wagetick/
-├── install.sh            # ← one-command install to /Applications
-├── uninstall.sh
-├── Makefile
+├── install.sh / uninstall.sh   # end-user install to /Applications
 ├── CMakeLists.txt
-├── resources.qrc
-├── src/
-│   ├── main.cpp
-│   ├── WageTimer.h
-│   └── WageTimer.cpp
-├── resources/
-│   ├── AppIcon.icns      # macOS app icon
-│   └── AppIcon-1024.png
-└── qml/
-    └── main.qml
+├── CONTRIBUTING.md
+├── src/                        # C++ engine (wage timer, update checker)
+├── qml/                        # Qt Quick UI
+├── resources/                  # App icon (.icns)
+├── docs/                       # Screenshots & docs assets
+└── scripts/                    # Maintainer helpers (icon, screenshot)
 ```
 
 ---
-
-
----
-
-## How users get notified of new versions
-
-WageTick checks **GitHub Releases** automatically about once a day (and when the user taps the version chip in the header).
-
-When a newer **published release** exists than the installed app version:
-
-1. A banner appears: **Update available** (`vX.Y.Z → vA.B.C`)
-2. **View release** opens the GitHub release page  
-3. **How to update** opens install/update instructions  
-4. **Skip** hides that version; **✕** reminds again in 24 hours  
-
-Users still install updates by re-running `./install.sh` (or following the release notes). There is no silent auto-download yet.
-
-### Maintainers: publish a release so users get notified
-
-1. Bump the version in `CMakeLists.txt`:
-   ```cmake
-   project(WageTick VERSION 1.2.0 LANGUAGES CXX)
-   ```
-2. Commit, tag, and push:
-   ```bash
-   git add -A && git commit -m "Release v1.2.0"
-   git tag v1.2.0
-   git push origin main --tags
-   ```
-3. On GitHub → **Releases → Draft a new release**
-   - Choose tag `v1.2.0`
-   - Title + release notes (shown truncated in the app banner)
-   - Publish (not prerelease / not draft)
-
-Only **published, non-prerelease** releases trigger the in-app banner.  
-Repo used for checks: `faizhameed/wagetick`.
 
 ## License
 
-MIT — use it, fork it, get paid while you stare at it.
+This project is licensed under the [MIT License](LICENSE) — free to use, modify, and distribute.
+
+---
+
+## Acknowledgments
+
+- [Qt](https://www.qt.io/) for the application framework  
+- [Homebrew](https://brew.sh/) for macOS packaging of the toolchain  
