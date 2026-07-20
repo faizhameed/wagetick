@@ -68,13 +68,14 @@ Intel Macs are not covered by this installer.
 
 ## Features
 
-- Hourly rate + currency switcher (USD / EUR / GBP)
+- Hourly rate + currency dropdown (USD / EUR / GBP)
 - Start / Stop / Reset
 - Live earnings (4 decimal places) from precise elapsed time
 - Elapsed clock `HH:MM:SS`
 - Per-second and per-minute chips
 - Glassmorphic UI with soft animated ambient orbs
 - Rate locked while the timer is running
+- In-app update checks (GitHub Releases) with optional dismiss / remind later
 
 ---
 
@@ -130,6 +131,42 @@ wagetick/
 ```
 
 ---
+
+
+---
+
+## How users get notified of new versions
+
+WageTick checks **GitHub Releases** automatically about once a day (and when the user taps the version chip in the header).
+
+When a newer **published release** exists than the installed app version:
+
+1. A banner appears: **Update available** (`vX.Y.Z → vA.B.C`)
+2. **View release** opens the GitHub release page  
+3. **How to update** opens install/update instructions  
+4. **Skip** hides that version; **✕** reminds again in 24 hours  
+
+Users still install updates by re-running `./install.sh` (or following the release notes). There is no silent auto-download yet.
+
+### Maintainers: publish a release so users get notified
+
+1. Bump the version in `CMakeLists.txt`:
+   ```cmake
+   project(WageTick VERSION 1.2.0 LANGUAGES CXX)
+   ```
+2. Commit, tag, and push:
+   ```bash
+   git add -A && git commit -m "Release v1.2.0"
+   git tag v1.2.0
+   git push origin main --tags
+   ```
+3. On GitHub → **Releases → Draft a new release**
+   - Choose tag `v1.2.0`
+   - Title + release notes (shown truncated in the app banner)
+   - Publish (not prerelease / not draft)
+
+Only **published, non-prerelease** releases trigger the in-app banner.  
+Repo used for checks: `faizhameed/wagetick`.
 
 ## License
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(WageTick VERSION 1.0.0 LANGUAGES CXX)
+project(WageTick VERSION 1.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,6 +20,7 @@ endif()
 find_package(Qt6 6.5 REQUIRED COMPONENTS
     Core
     Gui
+    Network
     Qml
     Quick
     QuickControls2
@@ -33,6 +34,8 @@ set(WAGETICK_SOURCES
     src/main.cpp
     src/WageTimer.cpp
     src/WageTimer.h
+    src/UpdateChecker.cpp
+    src/UpdateChecker.h
     resources.qrc
 )
 
@@ -49,9 +52,15 @@ qt_add_executable(WageTick ${WAGETICK_SOURCES})
 
 target_include_directories(WageTick PRIVATE src)
 
+target_compile_definitions(WageTick PRIVATE
+    WAGETICK_VERSION="${PROJECT_VERSION}"
+    WAGETICK_GITHUB_REPO="faizhameed/wagetick"
+)
+
 target_link_libraries(WageTick PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2

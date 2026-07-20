@@ -106,12 +106,60 @@ ApplicationWindow {
             Layout.fillWidth: true
             spacing: 4
 
-            Text {
-                text: "WageTick"
-                color: "#ffffff"
-                font.pixelSize: 28
-                font.weight: Font.DemiBold
-                font.letterSpacing: 0.5
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Text {
+                    text: "WageTick"
+                    color: "#ffffff"
+                    font.pixelSize: 28
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 0.5
+                    Layout.fillWidth: true
+                }
+
+                // Version + manual update check
+                Rectangle {
+                    radius: 10
+                    color: Qt.rgba(1, 1, 1, 0.06)
+                    border.color: Qt.rgba(1, 1, 1, 0.10)
+                    border.width: 1
+                    implicitWidth: verRow.implicitWidth + 16
+                    implicitHeight: 28
+                    opacity: updateChecker.checking ? 0.7 : 1.0
+
+                    Row {
+                        id: verRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Text {
+                            text: "v" + updateChecker.currentVersion
+                            color: "#8b93a7"
+                            font.pixelSize: 11
+                            font.weight: Font.Medium
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: updateChecker.checking ? "…" : "↻"
+                            color: "#6d758c"
+                            font.pixelSize: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: true
+                        onClicked: updateChecker.checkForUpdates(true)
+                        ToolTip.visible: containsMouse
+                        ToolTip.text: updateChecker.checking
+                                      ? "Checking…"
+                                      : (updateChecker.statusMessage || "Check for updates")
+                        ToolTip.delay: 400
+                    }
+                }
             }
             Text {
                 text: "Watch your earnings tick up — every second."
@@ -132,38 +180,139 @@ ApplicationWindow {
                 spacing: 14
 
                 Text {
-                    text: "HOURLY RATE"
+                    text: "CURRENCY"
                     color: "#8b93a7"
                     font.pixelSize: 11
                     font.weight: Font.Medium
                     font.letterSpacing: 1.2
                 }
 
-                RowLayout {
+                // Currency dropdown
+                ComboBox {
+                    id: currencyBox
                     Layout.fillWidth: true
-                    spacing: 10
+                    Layout.preferredHeight: 44
+                    enabled: !wageTimer.running
+                    textRole: "label"
+                    valueRole: "code"
 
-                    // Currency pills
-                    CurrencyPill {
-                        code: "USD"
-                        symbol: "$"
-                        selected: wageTimer.currency === "USD"
-                        onClicked: wageTimer.currency = "USD"
-                    }
-                    CurrencyPill {
-                        code: "EUR"
-                        symbol: "€"
-                        selected: wageTimer.currency === "EUR"
-                        onClicked: wageTimer.currency = "EUR"
-                    }
-                    CurrencyPill {
-                        code: "GBP"
-                        symbol: "£"
-                        selected: wageTimer.currency === "GBP"
-                        onClicked: wageTimer.currency = "GBP"
+                    model: ListModel {
+                        id: currencyModel
+                        ListElement { code: "USD"; symbol: "$"; label: "$  USD — US Dollar" }
+                        ListElement { code: "EUR"; symbol: "€"; label: "€  EUR — Euro" }
+                        ListElement { code: "GBP"; symbol: "£"; label: "£  GBP — British Pound" }
                     }
 
-                    Item { Layout.fillWidth: true }
+                    Component.onCompleted: {
+                        currentIndex = indexForCode(wageTimer.currency)
+                    }
+
+                    function indexForCode(code) {
+                        for (let i = 0; i < currencyModel.count; ++i) {
+                            if (currencyModel.get(i).code === code)
+                                return i
+                        }
+                        return 0
+                    }
+
+                    onActivated: function(index) {
+                        wageTimer.currency = currencyModel.get(index).code
+                    }
+
+                    // Keep UI in sync if currency is set programmatically
+                    Connections {
+                        target: wageTimer
+                        function onCurrencyChanged() {
+                            const i = currencyBox.indexForCode(wageTimer.currency)
+                            if (currencyBox.currentIndex !== i)
+                                currencyBox.currentIndex = i
+                        }
+                    }
+
+                    background: Rectangle {
+                        radius: 14
+                        color: Qt.rgba(1, 1, 1, currencyBox.enabled ? 0.06 : 0.03)
+                        border.color: currencyBox.popup.visible
+                                      ? Qt.rgba(0.45, 0.55, 1.0, 0.55)
+                                      : Qt.rgba(1, 1, 1, 0.12)
+                        border.width: 1
+                    }
+
+                    contentItem: Text {
+                        leftPadding: 14
+                        rightPadding: currencyBox.indicator.width + 16
+                        text: currencyBox.displayText
+                        color: currencyBox.enabled ? "#ffffff" : "#6d758c"
+                        font.pixelSize: 14
+                        font.weight: Font.Medium
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+
+                    indicator: Text {
+                        x: currencyBox.width - width - 14
+                        y: (currencyBox.height - height) / 2
+                        text: "▾"
+                        color: "#9aa3b8"
+                        font.pixelSize: 12
+                    }
+
+                    popup: Popup {
+                        y: currencyBox.height + 4
+                        width: currencyBox.width
+                        implicitHeight: contentItem.implicitHeight + 12
+                        padding: 6
+
+                        background: Rectangle {
+                            radius: 14
+                            color: "#1a2238"
+                            border.color: Qt.rgba(1, 1, 1, 0.14)
+                            border.width: 1
+                        }
+
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: contentHeight
+                            model: currencyBox.popup.visible ? currencyBox.delegateModel : null
+                            currentIndex: currencyBox.highlightedIndex
+                            ScrollIndicator.vertical: ScrollIndicator {}
+                        }
+                    }
+
+                    delegate: ItemDelegate {
+                        id: del
+                        width: currencyBox.width - 12
+                        height: 40
+                        // model roles from ListModel (code, symbol, label)
+                        required property int index
+                        required property var model
+                        highlighted: currencyBox.highlightedIndex === index
+
+                        contentItem: Text {
+                            text: model.label
+                            color: del.highlighted ? "#ffffff" : "#c8cfe0"
+                            font.pixelSize: 13
+                            font.weight: del.highlighted ? Font.DemiBold : Font.Normal
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 10
+                        }
+
+                        background: Rectangle {
+                            radius: 10
+                            color: del.highlighted
+                                   ? Qt.rgba(0.36, 0.48, 1.0, 0.35)
+                                   : "transparent"
+                        }
+                    }
+                }
+
+                Text {
+                    text: "HOURLY RATE"
+                    color: "#8b93a7"
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                    font.letterSpacing: 1.2
+                    Layout.topMargin: 4
                 }
 
                 // Rate input
@@ -399,6 +548,158 @@ ApplicationWindow {
         }
     }
 
+    // ── Update available banner ─────────────────────────────────────────────
+    Rectangle {
+        id: updateBanner
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 16
+        height: updateCol.implicitHeight + 28
+        radius: 18
+        visible: updateChecker.bannerVisible
+        z: 100
+        opacity: visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: Qt.rgba(0.30, 0.38, 0.95, 0.92) }
+            GradientStop { position: 1.0; color: Qt.rgba(0.55, 0.28, 0.90, 0.92) }
+        }
+        border.color: Qt.rgba(1, 1, 1, 0.22)
+        border.width: 1
+
+        // Soft shadow stand-in
+        Rectangle {
+            anchors.fill: parent
+            anchors.topMargin: 6
+            z: -1
+            radius: 18
+            color: Qt.rgba(0, 0, 0, 0.35)
+            opacity: 0.5
+        }
+
+        ColumnLayout {
+            id: updateCol
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: 14
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    Text {
+                        text: "Update available"
+                        color: "#ffffff"
+                        font.pixelSize: 14
+                        font.weight: Font.DemiBold
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "v" + updateChecker.currentVersion + "  →  v" + updateChecker.latestVersion
+                        color: Qt.rgba(1, 1, 1, 0.85)
+                        font.pixelSize: 12
+                    }
+                }
+
+                Text {
+                    text: "✕"
+                    color: Qt.rgba(1, 1, 1, 0.75)
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -8
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: updateChecker.remindLater()
+                    }
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: updateChecker.releaseNotes.length > 0
+                text: updateChecker.releaseNotes
+                color: Qt.rgba(1, 1, 1, 0.78)
+                font.pixelSize: 11
+                wrapMode: Text.WordWrap
+                maximumLineCount: 3
+                elide: Text.ElideRight
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
+                    radius: 12
+                    color: Qt.rgba(1, 1, 1, 0.95)
+                    Text {
+                        anchors.centerIn: parent
+                        text: "View release"
+                        color: "#2a2f45"
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: updateChecker.openReleasePage()
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
+                    radius: 12
+                    color: Qt.rgba(1, 1, 1, 0.14)
+                    border.color: Qt.rgba(1, 1, 1, 0.22)
+                    border.width: 1
+                    Text {
+                        anchors.centerIn: parent
+                        text: "How to update"
+                        color: "#ffffff"
+                        font.pixelSize: 13
+                        font.weight: Font.Medium
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: updateChecker.openUpdateInstructions()
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 72
+                    Layout.preferredHeight: 36
+                    radius: 12
+                    color: Qt.rgba(0, 0, 0, 0.18)
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Skip"
+                        color: Qt.rgba(1, 1, 1, 0.85)
+                        font.pixelSize: 12
+                        font.weight: Font.Medium
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: updateChecker.dismissUpdate()
+                    }
+                }
+            }
+        }
+    }
+
     // ── Reusable components ─────────────────────────────────────────────────
     component GlassCard: Item {
         id: card
@@ -441,48 +742,6 @@ ApplicationWindow {
             id: body
             anchors.fill: parent
         }
-    }
-
-    component CurrencyPill: Rectangle {
-        id: pill
-        property string code
-        property string symbol
-        property bool selected: false
-        signal clicked()
-
-        implicitWidth: pillRow.implicitWidth + 20
-        implicitHeight: 34
-        radius: 17
-        color: selected ? Qt.rgba(0.36, 0.48, 1.0, 0.28) : Qt.rgba(1, 1, 1, 0.05)
-        border.color: selected ? Qt.rgba(0.45, 0.55, 1.0, 0.55) : Qt.rgba(1, 1, 1, 0.10)
-        border.width: 1
-
-        Row {
-            id: pillRow
-            anchors.centerIn: parent
-            spacing: 5
-            Text {
-                text: pill.symbol
-                color: selected ? "#dce3ff" : "#9aa3b8"
-                font.pixelSize: 13
-                font.weight: Font.DemiBold
-            }
-            Text {
-                text: pill.code
-                color: selected ? "#ffffff" : "#9aa3b8"
-                font.pixelSize: 12
-                font.weight: Font.Medium
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: pill.clicked()
-        }
-
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on border.color { ColorAnimation { duration: 150 } }
     }
 
     component MiniStat: Rectangle {
