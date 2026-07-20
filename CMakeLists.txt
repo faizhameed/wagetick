@@ -1,0 +1,66 @@
+cmake_minimum_required(VERSION 3.21)
+project(WageTick VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+# Homebrew installs Qt modules separately; use the cellar prefix so all
+# components (qtbase + qtdeclarative) are visible to find_package.
+if(APPLE)
+    if(EXISTS "/opt/homebrew")
+        list(PREPEND CMAKE_PREFIX_PATH "/opt/homebrew")
+    elseif(EXISTS "/usr/local/opt/qtbase")
+        list(PREPEND CMAKE_PREFIX_PATH "/usr/local")
+    endif()
+endif()
+
+find_package(Qt6 6.5 REQUIRED COMPONENTS
+    Core
+    Gui
+    Qml
+    Quick
+    QuickControls2
+    QuickEffects
+)
+
+qt_standard_project_setup(REQUIRES 6.5)
+
+qt_add_executable(WageTick
+    src/main.cpp
+    src/WageTimer.cpp
+    src/WageTimer.h
+    resources.qrc
+)
+
+target_include_directories(WageTick PRIVATE src)
+
+target_link_libraries(WageTick PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::QuickEffects
+)
+
+if(APPLE)
+    set_target_properties(WageTick PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "WageTick"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.wagetick.app"
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_INFO_STRING "Live wage timer — watch earnings tick every second"
+    )
+endif()
+
+# Ensure QML style/plugins are linked for a relocatable app
+qt_import_qml_plugins(WageTick)
+
+install(TARGETS WageTick
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin
+)
