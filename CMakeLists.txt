@@ -8,11 +8,11 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Homebrew installs Qt modules separately; use the cellar prefix so all
-# components (qtbase + qtdeclarative) are visible to find_package.
+# components (qtbase + qtdeclarative + qtsvg) are visible to find_package.
 if(APPLE)
     if(EXISTS "/opt/homebrew")
         list(PREPEND CMAKE_PREFIX_PATH "/opt/homebrew")
-    elseif(EXISTS "/usr/local/opt/qtbase")
+    elseif(EXISTS "/usr/local")
         list(PREPEND CMAKE_PREFIX_PATH "/usr/local")
     endif()
 endif()
@@ -24,16 +24,28 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Quick
     QuickControls2
     QuickEffects
+    Svg
 )
 
 qt_standard_project_setup(REQUIRES 6.5)
 
-qt_add_executable(WageTick
+set(WAGETICK_SOURCES
     src/main.cpp
     src/WageTimer.cpp
     src/WageTimer.h
     resources.qrc
 )
+
+# macOS app icon (.icns → Contents/Resources + CFBundleIconFile)
+set(WAGETICK_MAC_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/AppIcon.icns")
+if(APPLE AND EXISTS "${WAGETICK_MAC_ICON}")
+    list(APPEND WAGETICK_SOURCES "${WAGETICK_MAC_ICON}")
+    set_source_files_properties("${WAGETICK_MAC_ICON}" PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
+endif()
+
+qt_add_executable(WageTick ${WAGETICK_SOURCES})
 
 target_include_directories(WageTick PRIVATE src)
 
@@ -44,6 +56,7 @@ target_link_libraries(WageTick PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::QuickEffects
+    Qt6::Svg
 )
 
 if(APPLE)
@@ -53,7 +66,11 @@ if(APPLE)
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.wagetick.app"
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
         MACOSX_BUNDLE_INFO_STRING "Live wage timer — watch earnings tick every second"
+        MACOSX_BUNDLE_COPYRIGHT "Copyright © WageTick contributors"
+        MACOSX_BUNDLE_ICON_FILE "AppIcon.icns"
+        OUTPUT_NAME "WageTick"
     )
 endif()
 
