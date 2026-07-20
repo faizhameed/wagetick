@@ -2,7 +2,11 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QQuickWindow>
 #include <QTimer>
+#include <QDir>
+#include <QFileInfo>
+#include <QImage>
 
 #include "UpdateChecker.h"
 #include "WageTimer.h"
@@ -38,6 +42,36 @@ int main(int argc, char *argv[])
     engine.load(url);
     if (engine.rootObjects().isEmpty())
         return -1;
+
+    // Headless-friendly screenshot capture for docs (no macOS Screen Recording needed):
+    //   WAGETICK_SCREENSHOT_ELAPSED_MS=4845000 \
+    //   WAGETICK_SAVE_SCREENSHOT=docs/screenshot.png \
+    //   ./WageTick
+    const QByteArray shotPath = qgetenv("WAGETICK_SAVE_SCREENSHOT");
+    if (!shotPath.isEmpty()) {
+        QTimer::singleShot(900, &app, [&engine, shotPath]() {
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
+            if (!window) {
+                QCoreApplication::exit(2);
+                return;
+            }
+            // Ensure a full frame has been rendered with seeded elapsed time
+            window->requestUpdate();
+            QImage img = window->grabWindow();
+            if (img.isNull()) {
+                QCoreApplication::exit(3);
+                return;
+            }
+            const QString path = QString::fromUtf8(shotPath);
+            QDir().mkpath(QFileInfo(path).absolutePath());
+            if (!img.save(path, "PNG")) {
+                QCoreApplication::exit(4);
+                return;
+            }
+            QCoreApplication::exit(0);
+        });
+        return app.exec();
+    }
 
     // Automatic check after UI is up (respects 24h cooldown + skipped versions)
     QTimer::singleShot(1500, &updateChecker, [checker = &updateChecker]() {

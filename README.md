@@ -6,6 +6,12 @@ Set your hourly rate in **USD ($)**, **EUR (€)**, or **GBP (£)**, hit **Start
 
 Glassmorphic dark UI · C++17 + Qt 6 · **Apple Silicon Mac**
 
+<p align="center">
+  <img src="docs/screenshot.png" alt="WageTick app showing $67.29 earned after 1 hour 20 minutes 45 seconds at $50/hr" width="380" />
+</p>
+
+<p align="center"><em>Live earnings after <strong>1h 20m 45s</strong> at $50/hr — elapsed clock <code>01:20:45</code>.</em></p>
+
 ---
 
 ## Install (Apple Silicon)
@@ -88,6 +94,18 @@ earned = (elapsed_milliseconds / 3_600_000) × hourly_rate
 Time uses a high-resolution clock and accumulates across pause/resume.
 
 ---
+
+
+### Regenerate the README screenshot
+
+Seeds elapsed time to **1 hour 20 minutes 45 seconds** and writes `docs/screenshot.png`:
+
+```bash
+cmake --build build-test -j   # or any Release build
+WAGETICK_SCREENSHOT_ELAPSED_MS=4845000 \
+WAGETICK_SAVE_SCREENSHOT=docs/screenshot.png \
+  ./build-test/WageTick.app/Contents/MacOS/WageTick
+```
 
 ## Developer build (optional)
 

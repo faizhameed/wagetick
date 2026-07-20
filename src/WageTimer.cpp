@@ -1,5 +1,8 @@
 #include "WageTimer.h"
 
+#include <QByteArray>
+#include <QtGlobal>
+
 #include <algorithm>
 #include <cmath>
 
@@ -17,6 +20,15 @@ WageTimer::WageTimer(QObject *parent)
     // Accrual itself is driven by a high-resolution elapsed clock.
     m_uiTimer.setInterval(100);
     connect(&m_uiTimer, &QTimer::timeout, this, &WageTimer::onTick);
+
+    // Optional: seed elapsed time for README/screenshots (e.g. 1h20m45s).
+    // WAGETICK_SCREENSHOT_ELAPSED_MS=4845000
+    if (const QByteArray seed = qgetenv("WAGETICK_SCREENSHOT_ELAPSED_MS"); !seed.isEmpty()) {
+        bool ok = false;
+        const qint64 ms = QString::fromUtf8(seed).toLongLong(&ok);
+        if (ok && ms >= 0)
+            m_accumulatedMs = ms;
+    }
 }
 
 void WageTimer::setHourlyRate(double rate)
