@@ -21,13 +21,14 @@ Built with **C++17 + Qt 6 QML** · glassmorphic UI · **Apple Silicon** macOS
 ## Features
 
 - Hourly rate with currency dropdown (USD / EUR / GBP)
+- **Start from** a chosen elapsed time (`H:M:S`) — earnings begin at that position
 - Start / Stop / Reset
 - Live earnings (4 decimal places) from precise elapsed time
 - Elapsed clock `HH:MM:SS`
 - Per-second and per-minute rates
 - Glassmorphic dark UI
 - In-app update checks via [GitHub Releases](https://github.com/faizhameed/wagetick/releases)
-- Rate locked while the timer is running
+- Rate and start time locked while the timer is running
 
 ---
 
@@ -92,10 +93,12 @@ rm -rf /Applications/WageTick.app
 
 1. Choose a **currency** from the dropdown  
 2. Enter your **hourly rate**  
-3. Press **Start** — earnings update continuously  
-4. **Stop** pauses (time is kept); **Reset** clears the session  
+3. Optionally set **Start from** (`hr` / `min` / `sec`) if you already worked some time  
+   — e.g. `1 : 20 : 10` at `$55/hr` starts earnings at about `$73.49` and the clock at `01:20:10`  
+4. Press **Start** — time and earnings continue from that position  
+5. **Stop** pauses (time is kept); **Reset** clears the session back to zero  
 
-While running, the hourly rate field is locked so you don’t change it by accident mid-session.
+While running, the hourly rate and start-from fields are locked so you don’t change them by accident mid-session.
 
 ### How earnings are calculated
 

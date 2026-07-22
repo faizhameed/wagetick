@@ -6,12 +6,58 @@ import QtQuick.Effects
 ApplicationWindow {
     id: root
     width: 420
-    height: 640
+    height: 720
     minimumWidth: 380
-    minimumHeight: 580
+    minimumHeight: 660
     visible: true
     title: "WageTick"
     color: "#0b0f1a"
+
+    // Local start-from fields (synced from wageTimer while paused)
+    property int startHours: 0
+    property int startMinutes: 0
+    property int startSeconds: 0
+
+    function pad2(n) {
+        return (n < 10 ? "0" : "") + n
+    }
+
+    function syncStartFieldsFromTimer() {
+        if (wageTimer.running)
+            return
+        const total = wageTimer.elapsedSeconds
+        startHours = Math.floor(total / 3600)
+        startMinutes = Math.floor((total % 3600) / 60)
+        startSeconds = total % 60
+        if (hoursField && !hoursField.activeFocus)
+            hoursField.text = pad2(startHours)
+        if (minutesField && !minutesField.activeFocus)
+            minutesField.text = pad2(startMinutes)
+        if (secondsField && !secondsField.activeFocus)
+            secondsField.text = pad2(startSeconds)
+    }
+
+    function applyStartElapsed() {
+        if (wageTimer.running)
+            return
+        const h = parseInt(hoursField.text, 10)
+        const m = parseInt(minutesField.text, 10)
+        const s = parseInt(secondsField.text, 10)
+        wageTimer.setElapsed(
+            isNaN(h) ? 0 : h,
+            isNaN(m) ? 0 : m,
+            isNaN(s) ? 0 : s
+        )
+        syncStartFieldsFromTimer()
+    }
+
+    Component.onCompleted: syncStartFieldsFromTimer()
+
+    Connections {
+        target: wageTimer
+        function onTick() { root.syncStartFieldsFromTimer() }
+        function onRunningChanged() { root.syncStartFieldsFromTimer() }
+    }
 
     // ── Animated gradient backdrop ──────────────────────────────────────────
     Rectangle {
@@ -383,6 +429,71 @@ ApplicationWindow {
                     color: "#6d758c"
                     font.pixelSize: 12
                 }
+
+                Text {
+                    text: "START FROM"
+                    color: "#8b93a7"
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                    font.letterSpacing: 1.2
+                    Layout.topMargin: 8
+                }
+
+                // Seed elapsed H:M:S so Start continues from a chosen position
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    enabled: !wageTimer.running
+                    opacity: wageTimer.running ? 0.45 : 1.0
+
+                    TimeUnitField {
+                        id: hoursField
+                        Layout.fillWidth: true
+                        unitLabel: "hr"
+                        maxValue: 9999
+                        onCommit: root.applyStartElapsed()
+                    }
+
+                    Text {
+                        text: ":"
+                        color: "#6d758c"
+                        font.pixelSize: 20
+                        font.weight: Font.DemiBold
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+
+                    TimeUnitField {
+                        id: minutesField
+                        Layout.fillWidth: true
+                        unitLabel: "min"
+                        maxValue: 59
+                        onCommit: root.applyStartElapsed()
+                    }
+
+                    Text {
+                        text: ":"
+                        color: "#6d758c"
+                        font.pixelSize: 20
+                        font.weight: Font.DemiBold
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+
+                    TimeUnitField {
+                        id: secondsField
+                        Layout.fillWidth: true
+                        unitLabel: "sec"
+                        maxValue: 59
+                        onCommit: root.applyStartElapsed()
+                    }
+                }
+
+                Text {
+                    text: wageTimer.elapsedSeconds > 0
+                          ? ("Earnings begin at  " + wageTimer.formattedEarned)
+                          : "Optional — leave at 00 to start from zero"
+                    color: "#6d758c"
+                    font.pixelSize: 12
+                }
             }
         }
 
@@ -522,7 +633,11 @@ ApplicationWindow {
                 accent: wageTimer.running ? "#ff5c7a" : "#5b8cff"
                 label: wageTimer.running ? "Stop" : "Start"
                 enabled: wageTimer.running || wageTimer.hourlyRate > 0
-                onClicked: wageTimer.toggle()
+                onClicked: {
+                    if (!wageTimer.running)
+                        root.applyStartElapsed()
+                    wageTimer.toggle()
+                }
             }
 
             // Reset
@@ -533,7 +648,10 @@ ApplicationWindow {
                 accent: "#ffffff"
                 label: "Reset"
                 enabled: wageTimer.elapsedSeconds > 0 || wageTimer.running
-                onClicked: wageTimer.reset()
+                onClicked: {
+                    wageTimer.reset()
+                    root.syncStartFieldsFromTimer()
+                }
             }
         }
 
@@ -701,6 +819,66 @@ ApplicationWindow {
     }
 
     // ── Reusable components ─────────────────────────────────────────────────
+    component TimeUnitField: Rectangle {
+        id: timeUnit
+        property string unitLabel: ""
+        property int maxValue: 59
+        property alias text: field.text
+        property alias activeFocus: field.activeFocus
+        signal commit()
+
+        Layout.preferredHeight: 52
+        radius: 14
+        color: Qt.rgba(1, 1, 1, enabled ? 0.06 : 0.03)
+        border.color: field.activeFocus
+                      ? Qt.rgba(0.45, 0.55, 1.0, 0.55)
+                      : Qt.rgba(1, 1, 1, 0.12)
+        border.width: 1
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 0
+
+            TextField {
+                id: field
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                text: "00"
+                color: timeUnit.enabled ? "#ffffff" : "#6d758c"
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+                font.family: "Menlo"
+                selectByMouse: true
+                enabled: timeUnit.enabled
+                inputMethodHints: Qt.ImhDigitsOnly
+                validator: IntValidator { bottom: 0; top: timeUnit.maxValue }
+                background: Item {}
+                onEditingFinished: {
+                    let v = parseInt(text, 10)
+                    if (isNaN(v))
+                        v = 0
+                    v = Math.max(0, Math.min(timeUnit.maxValue, v))
+                    text = root.pad2(v)
+                    timeUnit.commit()
+                }
+                Keys.onReturnPressed: editingFinished()
+                Keys.onEnterPressed: editingFinished()
+            }
+
+            Text {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: timeUnit.unitLabel
+                color: "#6d758c"
+                font.pixelSize: 10
+                font.letterSpacing: 0.5
+            }
+        }
+    }
+
     component GlassCard: Item {
         id: card
         default property alias contentData: body.data

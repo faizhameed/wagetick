@@ -159,6 +159,29 @@ void WageTimer::reset()
     emit tick();
 }
 
+void WageTimer::setElapsed(int hours, int minutes, int seconds)
+{
+    // Only while paused so live sessions aren't rewritten mid-tick.
+    if (m_running)
+        return;
+
+    hours = std::clamp(hours, 0, 9999);
+    minutes = std::clamp(minutes, 0, 59);
+    seconds = std::clamp(seconds, 0, 59);
+
+    const qint64 totalSec = static_cast<qint64>(hours) * 3600
+        + static_cast<qint64>(minutes) * 60
+        + static_cast<qint64>(seconds);
+    const qint64 ms = totalSec * 1000;
+
+    if (m_accumulatedMs == ms)
+        return;
+
+    m_accumulatedMs = ms;
+    m_session.invalidate();
+    emit tick();
+}
+
 void WageTimer::toggle()
 {
     if (m_running)

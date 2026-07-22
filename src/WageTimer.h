@@ -51,6 +51,8 @@ public slots:
     void stop();
     void reset();
     void toggle();
+    /// Seed elapsed time so Start continues from a chosen H:M:S (paused only).
+    void setElapsed(int hours, int minutes, int seconds);
 
 signals:
     void hourlyRateChanged();
