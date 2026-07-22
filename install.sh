@@ -98,28 +98,89 @@ APP_SRC="${BUILD_DIR}/${APP_NAME}.app"
 step "Bundling Qt into ${APP_NAME}.app (self-contained)"
 info "This packages frameworks so the app runs from Applications without extra PATH setup…"
 
+# Homebrew ships modular Qt: plugins live under share/qt/plugins and QML under
+# share/qt/qml. Without these hints, macdeployqt6 omits the cocoa platform
+# plugin and modules such as QtQuick.Layouts — the installed .app then aborts
+# at launch with "Could not find the Qt platform plugin cocoa".
+QT_PREFIX="$(brew --prefix)"
+QTBASE_PREFIX="$(brew --prefix qtbase)"
+QML_IMPORT_PATH="${QT_PREFIX}/share/qt/qml"
+if [[ ! -d "${QML_IMPORT_PATH}" ]]; then
+  QML_IMPORT_PATH="${QTBASE_PREFIX}/share/qt/qml"
+fi
+QT_PLUGINS_PATH="${QT_PREFIX}/share/qt/plugins"
+if [[ ! -d "${QT_PLUGINS_PATH}" ]]; then
+  QT_PLUGINS_PATH="${QTBASE_PREFIX}/share/qt/plugins"
+fi
+[[ -d "${QML_IMPORT_PATH}" ]] || die "Qt QML import path not found (expected share/qt/qml under Homebrew)."
+[[ -d "${QT_PLUGINS_PATH}/platforms" ]] || die "Qt platforms plugins not found under ${QT_PLUGINS_PATH}."
+
+export QT_PLUGIN_PATH="${QT_PLUGINS_PATH}"
+export QML2_IMPORT_PATH="${QML_IMPORT_PATH}"
+
 LIBPATHS=(
-  -libpath="$(brew --prefix)/lib"
+  -libpath="${QT_PREFIX}/lib"
   -libpath="$(brew --prefix qtsvg)/lib"
-  -libpath="$(brew --prefix qtbase)/lib"
+  -libpath="${QTBASE_PREFIX}/lib"
   -libpath="$(brew --prefix qtdeclarative)/lib"
 )
 
 # macdeployqt may print non-fatal rpath / intermediate codesign noise on Homebrew Qt.
 # We always re-sign the full bundle ourselves afterward.
+# Capture full log (don't pipe through grep — that can mask a real failure via PIPESTATUS).
+DEPLOY_LOG="${BUILD_DIR}/macdeployqt.log"
 set +e
 "${MACDEPLOYQT}" "${APP_SRC}" \
   -qmldir="${ROOT}/qml" \
+  -qmlimport="${QML_IMPORT_PATH}" \
   "${LIBPATHS[@]}" \
-  -verbose=1 2>&1 | grep -v -E 'codesign verification error|invalid signature|Cannot resolve rpath' || true
-DEPLOY_RC=${PIPESTATUS[0]}
+  -verbose=1 \
+  -no-codesign \
+  >"${DEPLOY_LOG}" 2>&1
+DEPLOY_RC=$?
 set -e
 if [[ ${DEPLOY_RC:-0} -ne 0 ]]; then
-  warn "macdeployqt exited with code ${DEPLOY_RC} (often non-fatal). Continuing with re-sign…"
+  # Still continue if frameworks landed — macdeployqt often returns non-zero on rpath noise.
+  if [[ ! -d "${APP_SRC}/Contents/Frameworks" ]]; then
+    tail -40 "${DEPLOY_LOG}" >&2 || true
+    die "macdeployqt failed (exit ${DEPLOY_RC}). See ${DEPLOY_LOG}"
+  fi
+  warn "macdeployqt exited with code ${DEPLOY_RC} (often non-fatal). Continuing with checks…"
 fi
-# Sanity: frameworks must exist after deploy
+
+# Sanity: frameworks + cocoa platform plugin (required to open a window)
 [[ -d "${APP_SRC}/Contents/Frameworks" ]] || die "Deploy failed — Frameworks folder missing."
-ok "Qt frameworks bundled"
+if [[ ! -f "${APP_SRC}/Contents/PlugIns/platforms/libqcocoa.dylib" ]]; then
+  # Last-resort manual copy if macdeployqt still skipped platforms
+  warn "libqcocoa missing after macdeployqt — copying from Homebrew plugins…"
+  mkdir -p "${APP_SRC}/Contents/PlugIns/platforms"
+  cp "${QT_PLUGINS_PATH}/platforms/libqcocoa.dylib" "${APP_SRC}/Contents/PlugIns/platforms/"
+  # Point @rpath deps at the bundled Frameworks folder
+  install_name_tool -add_rpath @loader_path/../../Frameworks \
+    "${APP_SRC}/Contents/PlugIns/platforms/libqcocoa.dylib" 2>/dev/null || true
+fi
+[[ -f "${APP_SRC}/Contents/PlugIns/platforms/libqcocoa.dylib" ]] \
+  || die "Deploy failed — cocoa platform plugin still missing."
+
+# Ensure QML modules our UI imports are present (Layouts / Effects)
+for mod in Layouts Effects; do
+  if [[ ! -d "${APP_SRC}/Contents/Resources/qml/QtQuick/${mod}" ]]; then
+    warn "QML module QtQuick.${mod} missing after macdeployqt — copying from Homebrew…"
+    mkdir -p "${APP_SRC}/Contents/Resources/qml/QtQuick"
+    cp -R "${QML_IMPORT_PATH}/QtQuick/${mod}" "${APP_SRC}/Contents/Resources/qml/QtQuick/"
+  fi
+done
+
+# qt.conf so the installed app finds PlugIns/ and QML without relying on env vars
+mkdir -p "${APP_SRC}/Contents/Resources"
+cat > "${APP_SRC}/Contents/Resources/qt.conf" <<'EOF'
+[Paths]
+Plugins = PlugIns
+QmlImports = Resources/qml
+Qml2Imports = Resources/qml
+EOF
+
+ok "Qt frameworks + platforms + QML modules bundled"
 
 # ── ad-hoc code sign (required after macdeployqt rewrites binaries) ─────────
 step "Signing app (ad-hoc)"

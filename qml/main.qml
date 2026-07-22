@@ -29,11 +29,11 @@ ApplicationWindow {
         startHours = Math.floor(total / 3600)
         startMinutes = Math.floor((total % 3600) / 60)
         startSeconds = total % 60
-        if (hoursField && !hoursField.activeFocus)
+        if (hoursField && !hoursField.inputFocused)
             hoursField.text = pad2(startHours)
-        if (minutesField && !minutesField.activeFocus)
+        if (minutesField && !minutesField.inputFocused)
             minutesField.text = pad2(startMinutes)
-        if (secondsField && !secondsField.activeFocus)
+        if (secondsField && !secondsField.inputFocused)
             secondsField.text = pad2(startSeconds)
     }
 
@@ -824,7 +824,8 @@ ApplicationWindow {
         property string unitLabel: ""
         property int maxValue: 59
         property alias text: field.text
-        property alias activeFocus: field.activeFocus
+        // Don't alias Item.activeFocus (FINAL) — expose the TextField focus separately
+        readonly property bool inputFocused: field.activeFocus
         signal commit()
 
         Layout.preferredHeight: 52
