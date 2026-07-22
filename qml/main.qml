@@ -13,42 +13,38 @@ ApplicationWindow {
     title: "WageTick"
     color: "#0b0f1a"
 
-    // Local start-from fields (synced from wageTimer while paused)
-    property int startHours: 0
-    property int startMinutes: 0
-    property int startSeconds: 0
-
     function pad2(n) {
         return (n < 10 ? "0" : "") + n
     }
 
-    function syncStartFieldsFromTimer() {
-        if (wageTimer.running)
-            return
-        const total = wageTimer.elapsedSeconds
-        startHours = Math.floor(total / 3600)
-        startMinutes = Math.floor((total % 3600) / 60)
-        startSeconds = total % 60
-        if (hoursField && !hoursField.inputFocused)
-            hoursField.text = pad2(startHours)
-        if (minutesField && !minutesField.inputFocused)
-            minutesField.text = pad2(startMinutes)
-        if (secondsField && !secondsField.inputFocused)
-            secondsField.text = pad2(startSeconds)
+    function parseUnit(text) {
+        const v = parseInt(String(text).trim(), 10)
+        return isNaN(v) ? 0 : v
     }
 
+    /// Push H/M/S fields into the engine (paused only).
     function applyStartElapsed() {
         if (wageTimer.running)
             return
-        const h = parseInt(hoursField.text, 10)
-        const m = parseInt(minutesField.text, 10)
-        const s = parseInt(secondsField.text, 10)
         wageTimer.setElapsed(
-            isNaN(h) ? 0 : h,
-            isNaN(m) ? 0 : m,
-            isNaN(s) ? 0 : s
+            hoursField ? hoursField.value : 0,
+            minutesField ? minutesField.value : 0,
+            secondsField ? secondsField.value : 0
         )
-        syncStartFieldsFromTimer()
+    }
+
+    /// Keep the three unit fields in sync with engine elapsed (live while running).
+    function syncStartFieldsFromTimer() {
+        const total = Math.max(0, wageTimer.elapsedSeconds)
+        const h = Math.floor(total / 3600)
+        const m = Math.floor((total % 3600) / 60)
+        const s = total % 60
+        if (hoursField && !hoursField.inputFocused)
+            hoursField.setDisplayValue(h)
+        if (minutesField && !minutesField.inputFocused)
+            minutesField.setDisplayValue(m)
+        if (secondsField && !secondsField.inputFocused)
+            secondsField.setDisplayValue(s)
     }
 
     Component.onCompleted: syncStartFieldsFromTimer()
@@ -439,25 +435,25 @@ ApplicationWindow {
                     Layout.topMargin: 8
                 }
 
-                // Seed elapsed H:M:S so Start continues from a chosen position
+                // Seed elapsed H:M:S so Start continues from a chosen position.
+                // While running these fields track live elapsed (read-only).
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    enabled: !wageTimer.running
-                    opacity: wageTimer.running ? 0.45 : 1.0
 
                     TimeUnitField {
                         id: hoursField
                         Layout.fillWidth: true
                         unitLabel: "hr"
                         maxValue: 9999
+                        editable: !wageTimer.running
                         onCommit: root.applyStartElapsed()
                     }
 
                     Text {
                         text: ":"
                         color: "#6d758c"
-                        font.pixelSize: 20
+                        font.pixelSize: 22
                         font.weight: Font.DemiBold
                         Layout.alignment: Qt.AlignVCenter
                     }
@@ -467,13 +463,14 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         unitLabel: "min"
                         maxValue: 59
+                        editable: !wageTimer.running
                         onCommit: root.applyStartElapsed()
                     }
 
                     Text {
                         text: ":"
                         color: "#6d758c"
-                        font.pixelSize: 20
+                        font.pixelSize: 22
                         font.weight: Font.DemiBold
                         Layout.alignment: Qt.AlignVCenter
                     }
@@ -483,14 +480,20 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         unitLabel: "sec"
                         maxValue: 59
+                        editable: !wageTimer.running
                         onCommit: root.applyStartElapsed()
                     }
                 }
 
                 Text {
-                    text: wageTimer.elapsedSeconds > 0
-                          ? ("Earnings begin at  " + wageTimer.formattedEarned)
-                          : "Optional — leave at 00 to start from zero"
+                    text: {
+                        if (wageTimer.running)
+                            return "Live elapsed  " + wageTimer.formattedElapsed
+                        if (wageTimer.elapsedSeconds > 0)
+                            return "Earnings begin at  " + wageTimer.formattedEarned
+                                  + "  ·  " + wageTimer.formattedElapsed
+                        return "Optional — leave blank to start from zero"
+                    }
                     color: "#6d758c"
                     font.pixelSize: 12
                 }
@@ -634,8 +637,13 @@ ApplicationWindow {
                 label: wageTimer.running ? "Stop" : "Start"
                 enabled: wageTimer.running || wageTimer.hourlyRate > 0
                 onClicked: {
-                    if (!wageTimer.running)
+                    if (!wageTimer.running) {
+                        // Blur fields first so their final text is committed, then seed.
+                        hoursField.normalize()
+                        minutesField.normalize()
+                        secondsField.normalize()
                         root.applyStartElapsed()
+                    }
                     wageTimer.toggle()
                 }
             }
@@ -650,7 +658,9 @@ ApplicationWindow {
                 enabled: wageTimer.elapsedSeconds > 0 || wageTimer.running
                 onClicked: {
                     wageTimer.reset()
-                    root.syncStartFieldsFromTimer()
+                    hoursField.clearToPlaceholder()
+                    minutesField.clearToPlaceholder()
+                    secondsField.clearToPlaceholder()
                 }
             }
         }
@@ -823,60 +833,112 @@ ApplicationWindow {
         id: timeUnit
         property string unitLabel: ""
         property int maxValue: 59
-        property alias text: field.text
-        // Don't alias Item.activeFocus (FINAL) — expose the TextField focus separately
+        property bool editable: true
+        /// Parsed integer (empty field → 0)
+        readonly property int value: {
+            const v = parseInt(String(field.text).trim(), 10)
+            if (isNaN(v))
+                return 0
+            return Math.max(0, Math.min(maxValue, v))
+        }
         readonly property bool inputFocused: field.activeFocus
         signal commit()
 
-        Layout.preferredHeight: 52
+        // Tall enough for number + unit label without clipping "00"
+        implicitHeight: 64
+        Layout.preferredHeight: 64
         radius: 14
-        color: Qt.rgba(1, 1, 1, enabled ? 0.06 : 0.03)
+        color: Qt.rgba(1, 1, 1, editable ? 0.06 : 0.03)
         border.color: field.activeFocus
                       ? Qt.rgba(0.45, 0.55, 1.0, 0.55)
                       : Qt.rgba(1, 1, 1, 0.12)
         border.width: 1
+        clip: false
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 8
-            spacing: 0
+        function setDisplayValue(n) {
+            n = Math.max(0, Math.min(maxValue, n | 0))
+            // 0 → empty so placeholder "00" shows; otherwise padded digits
+            field.text = (n === 0) ? "" : root.pad2(n)
+        }
+
+        function clearToPlaceholder() {
+            field.text = ""
+        }
+
+        function normalize() {
+            const n = value
+            field.text = (n === 0) ? "" : root.pad2(n)
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
 
             TextField {
                 id: field
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                width: parent.width
+                height: 28
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                text: "00"
-                color: timeUnit.enabled ? "#ffffff" : "#6d758c"
+                // Empty + placeholder avoids "00" + type "2" → "200"
+                text: ""
+                placeholderText: "00"
+                placeholderTextColor: "#5a6278"
+                color: timeUnit.editable ? "#ffffff" : "#9aa3b8"
                 font.pixelSize: 18
                 font.weight: Font.DemiBold
                 font.family: "Menlo"
                 selectByMouse: true
-                enabled: timeUnit.enabled
+                readOnly: !timeUnit.editable
+                enabled: true
                 inputMethodHints: Qt.ImhDigitsOnly
                 validator: IntValidator { bottom: 0; top: timeUnit.maxValue }
                 background: Item {}
+                leftPadding: 4
+                rightPadding: 4
+                topPadding: 0
+                bottomPadding: 0
+                // No clip on the digits
+                clip: false
+
+                onActiveFocusChanged: {
+                    if (activeFocus && timeUnit.editable) {
+                        // Fresh entry: clear placeholder-looking zeros, or select existing value
+                        if (text === "" || text === "00" || text === "0") {
+                            text = ""
+                        } else {
+                            selectAll()
+                        }
+                    }
+                }
+
                 onEditingFinished: {
-                    let v = parseInt(text, 10)
-                    if (isNaN(v))
-                        v = 0
-                    v = Math.max(0, Math.min(timeUnit.maxValue, v))
-                    text = root.pad2(v)
+                    timeUnit.normalize()
                     timeUnit.commit()
                 }
+
                 Keys.onReturnPressed: editingFinished()
                 Keys.onEnterPressed: editingFinished()
             }
 
             Text {
-                Layout.fillWidth: true
+                width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 text: timeUnit.unitLabel
                 color: "#6d758c"
-                font.pixelSize: 10
-                font.letterSpacing: 0.5
+                font.pixelSize: 11
+                font.letterSpacing: 0.6
             }
+        }
+
+        // Tap empty area to focus the field when editable
+        MouseArea {
+            anchors.fill: parent
+            enabled: timeUnit.editable && !field.activeFocus
+            z: -1
+            onClicked: field.forceActiveFocus()
         }
     }
 
